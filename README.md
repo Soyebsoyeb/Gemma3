@@ -21,7 +21,8 @@ A 270M parameter language model implementation featuring Grouped-Query Attention
 - [Advanced Configuration](#advanced-configuration)
 - [Performance Benchmarks](#performance-benchmarks)
 - [Monitoring Training](#monitoring-training)
-- [Research Notes](#research-notes)
+- [Architectural Background](#architectural-background)
+- [References](#references)
 - [Testing](#testing)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
@@ -481,16 +482,52 @@ class EarlyStopping:
 - `notebooks/04_model_analysis.ipynb` — architecture and attention pattern analysis, memory usage, speed benchmarking
 - `notebooks/05_hyperparameter_tuning.ipynb` — learning rate exploration, batch size and model size comparisons
 
-## Research Notes
+## Architectural Background
 
-This implementation draws on several techniques from recent language model research:
+This implementation follows the Gemma 2 / Gemma 3 line of architectural decisions (Gemma Team, 2024; Gemma Team, 2025), which combine several techniques developed independently in the literature. This section summarizes each component and the source it is drawn from.
 
-- Grouped-Query Attention, which reduces KV cache memory while preserving performance
-- Sliding Window Attention, which enables efficient processing of long contexts
-- Dual RoPE bases (10,000 for local layers, 1,000,000 for global layers)
-- QK normalization for improved training stability
-- RMSNorm in place of LayerNorm for lower computational cost
-- A pre-attention query scalar for improved gradient flow
+### Grouped-Query Attention (GQA)
+
+Standard multi-head attention (MHA) computes an independent key/value projection per query head (Vaswani et al., 2017). Multi-query attention (MQA) reduces this to a single shared key/value head across all query heads, cutting KV cache size at some cost to quality (Shazeer, 2019). GQA interpolates between the two: the `h` query heads are partitioned into `g` groups, and each group shares one key/value head (Ainslie et al., 2023).
+
+```
+g = h        ->  GQA reduces to MHA
+1 < g < h    ->  GQA (this implementation: h = 4, g = 1)
+g = 1        ->  GQA reduces to MQA
+```
+
+With `n_heads = 4` and `n_kv_groups = 1`, this configuration sits at the MQA extreme of the GQA spectrum, prioritizing KV cache size over the representational capacity of independent per-head keys and values.
+
+### Sliding Window Attention
+
+Sliding window attention restricts each token's attention to a fixed-size local window instead of the full sequence, reducing the computational and memory cost of self-attention from quadratic to linear in sequence length (Beltagy et al., 2020). Gemma 2 interleaves local (sliding window) and global (full) attention layers at a 1:1 ratio (Gemma Team, 2024); Gemma 3 widens this to a 5:1 ratio, trading a small amount of long-context modeling capacity for a substantial reduction in KV cache memory (Gemma Team, 2025). This implementation follows the Gemma 3 pattern: five sliding-window layers followed by one full-attention layer, repeated across the network.
+
+### Rotary Position Embeddings (RoPE)
+
+RoPE encodes token position by rotating query and key vectors by an angle proportional to their sequence position, so that the dot product between a rotated query and key depends only on their relative distance (Su et al., 2021). This gives the attention mechanism relative-position awareness without an additive positional embedding, and it extrapolates more gracefully to sequence lengths not seen during training than learned absolute embeddings.
+
+This implementation uses two RoPE base frequencies, following the local/global split introduced in Gemma 2 (Gemma Team, 2024): a base of 10,000 for sliding-window (local) layers and 1,000,000 for full-attention (global) layers. The higher base for global layers slows the rate at which positional signal decays over long distances, which matters more for layers that attend across the full 32K-token context.
+
+### RMSNorm
+
+RMSNorm normalizes activations by their root-mean-square statistic rather than by mean and variance, dropping the re-centering step used in LayerNorm (Zhang and Sennrich, 2019). This removes one reduction per normalization call, which measurably reduces training and inference latency at negligible cost to model quality, and it is the normalization used throughout Gemma, LLaMA, and Mistral-family models.
+
+### QK Normalization and Query Pre-Attention Scaling
+
+Following Gemma 3 (Gemma Team, 2025), this implementation applies RMSNorm to queries and keys before computing attention scores, which improves training stability at this parameter count. Queries are additionally scaled by a fixed `query_pre_attn_scalar` before the dot product, rather than the conventional `1/sqrt(head_dim)`, decoupling the attention temperature from the head dimension.
+
+## References
+
+1. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention Is All You Need. *NeurIPS 2017*. https://arxiv.org/abs/1706.03762
+2. Shazeer, N. (2019). Fast Transformer Decoding: One Write-Head Is All You Need. https://arxiv.org/abs/1911.02150
+3. Ainslie, J., Lee-Thorp, J., de Jong, M., Zemlyanskiy, Y., Lebrón, F., and Sanghai, S. (2023). GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. *EMNLP 2023*. https://arxiv.org/abs/2305.13245
+4. Su, J., Lu, Y., Pan, S., Wen, B., and Liu, Y. (2021). RoFormer: Enhanced Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
+5. Beltagy, I., Peters, M. E., and Cohan, A. (2020). Longformer: The Long-Document Transformer. https://arxiv.org/abs/2004.05150
+6. Zhang, B. and Sennrich, R. (2019). Root Mean Square Layer Normalization. *NeurIPS 2019*. https://arxiv.org/abs/1910.07467
+7. Shazeer, N. (2020). GLU Variants Improve Transformer. https://arxiv.org/abs/2002.05202
+8. Gemma Team, Google DeepMind (2024). Gemma 2: Improving Open Language Models at a Practical Size. https://arxiv.org/abs/2408.00118
+9. Gemma Team, Google DeepMind (2025). Gemma 3 Technical Report. https://arxiv.org/abs/2503.19786
+10. Karpathy, A. nanoGPT. https://github.com/karpathy/nanoGPT
 
 ## Testing
 
@@ -582,10 +619,9 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 
 ## Acknowledgments
 
-- Google Gemma, for architecture inspiration
-- nanoGPT, for implementation patterns
-- Andrej Karpathy, for educational content
-- Hugging Face, for datasets and tooling
+- Google DeepMind, for the Gemma model family and technical reports this architecture is based on
+- Andrej Karpathy and the nanoGPT project, for implementation patterns this codebase follows
+- Hugging Face, for datasets and tokenizer tooling
 
 ## Contact
 
