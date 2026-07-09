@@ -1,0 +1,18 @@
+training:
+  learning_rate: 1e-4
+  max_iters: 150000
+  warmup_steps: 1000
+  min_lr: 5e-4
+  eval_iters: 500
+  batch_size: 32
+  block_size: 128
+  gradient_accumulation_steps: 32
+  dtype: bfloat16
+
+model:
+  checkpoint_path: best_model_params.pt
+
+data:
+  data_dir: data
+  num_proc: 8
+  test_split: 0.1
