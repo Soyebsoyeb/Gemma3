@@ -98,8 +98,8 @@ Layer configuration — sliding-window attention on most layers, full attention 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/slm-project.git
-cd slm-project
+git clone https://github.com/Soyebsoyeb/Gemma3.git
+cd Gemma3
 
 # Create and activate a virtual environment
 python -m venv venv
@@ -137,7 +137,7 @@ Recommended order:
 ## Project Structure
 
 ```
-slm_project/
+Gemma3/
 ├── src/                            # Core source code
 │   ├── data/                       # Data processing
 │   │   ├── tokenizer.py            # GPT-2 tokenizer wrapper
