@@ -606,10 +606,10 @@ pylint src/
 
 ```bibtex
 @software{slm270m2026,
-  author = {Your Name},
+  author = {MD Soyeb Hoque},
   title  = {SLM-270M: Small Language Model with Gemma3 Architecture},
   year   = {2026},
-  url    = {https://github.com/yourusername/slm-project}
+  url    = {https://github.com/Soyebsoyeb/Gemma3}
 }
 ```
 
