@@ -624,7 +624,4 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 - Hugging Face, for datasets and tokenizer tooling
 
 ## Contact
-
-- Issues: https://github.com/yourusername/slm-project/issues
-- Discussions: https://github.com/yourusername/slm-project/discussions
-- Email: your.email@example.com
+- Email: workemailsoyeb@example.com
